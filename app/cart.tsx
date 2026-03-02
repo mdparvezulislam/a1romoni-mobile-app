@@ -1,10 +1,11 @@
 // app/cart.tsx
-import { useCartStore } from "@/store/cartStore";
+import { useCartStore } from "@/store/cartStore"; // 👈 সঠিক পাথ দিন
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
   Barcode,
   Check,
+  Copy,
   Edit,
   Minus,
   Plus,
@@ -51,21 +52,25 @@ const getCurrentDate = () => {
   return `${day} ${month}`;
 };
 
+// Helper: Generate a unique ID for copied items
+const generateUniqueId = (baseId: string) => `${baseId}_${Date.now()}`;
+
 export default function CartOverviewScreen() {
   const router = useRouter();
-  const {
-    cart,
-    subtotal,
-    discount,
-    finalAmount,
-    updateQty,
-    updateItemDetails,
-    removeFromCart,
-    setDiscount,
-  } = useCartStore();
+
+  // Zustand Store
+  const cart = useCartStore((state) => state.cart);
+  const subtotal = useCartStore((state) => state.subtotal);
+  const discount = useCartStore((state) => state.discount);
+  const finalAmount = useCartStore((state) => state.finalAmount);
+  const updateQty = useCartStore((state) => state.updateQty);
+  const updateItemDetails = useCartStore((state) => state.updateItemDetails);
+  const removeFromCart = useCartStore((state) => state.removeFromCart);
+  const setDiscount = useCartStore((state) => state.setDiscount);
+  const addToCart = useCartStore((state) => state.addToCart);
 
   const scrollViewRef = useRef<ScrollView>(null);
-  const priceInputRef = useRef<TextInput>(null); // ✅ প্রাইস ফিল্ডে অটো ফোকাসের জন্য
+  const nameInputRef = useRef<TextInput>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -73,7 +78,7 @@ export default function CartOverviewScreen() {
   const [showDiscount, setShowDiscount] = useState(discount > 0);
   const [keyboardPadding, setKeyboardPadding] = useState(130);
 
-  // ✅ লাইভ কীবোর্ড ট্র্যাকিং (প্যাডিংয়ের জন্য)
+  // কীবোর্ড প্যাডিং হ্যান্ডলিং
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -89,32 +94,49 @@ export default function CartOverviewScreen() {
     };
   }, []);
 
-  // ✅ এডিট মুড চালু করা এবং অটোমেটিক ফোকাস করা
+  // এডিট মুড চালু করা
   const startEditing = (item: any) => {
     setEditingId(item.product._id);
     setEditName(item.customName || item.product.name);
     setEditPrice((item.customPrice ?? item.product.salePrice).toString());
 
-    // সামান্য সময় দিয়ে প্রাইস ফিল্ডে ফোকাস করানো হচ্ছে
+    // নেম ইনপুটে অটো ফোকাস করা যেন সাথে সাথে কিবোর্ড আসে
     setTimeout(() => {
-      priceInputRef.current?.focus();
-    }, 100);
+      nameInputRef.current?.focus();
+    }, 150);
   };
 
-  // ✅ এডিট সেভ করা (অটো-সেভ)
+  // ✅ এডিট সেভ করা (Fix: শুধু ম্যানুয়ালি সেভ বাটনে ক্লিক করলেই সেভ হবে)
   const saveEditing = (productId: string) => {
-    if (editingId !== productId) return; // যদি এডিটিং মোডে না থাকে তবে সেভ করবে না
+    if (editingId !== productId) return;
 
     const price = Number(editPrice);
     if (isNaN(price) || price < 0) {
-      updateItemDetails(productId, editName, 0); // নেগেটিভ প্রাইস হলে 0 বসিয়ে দেবে
+      updateItemDetails(productId, editName, 0);
     } else {
       updateItemDetails(productId, editName, price);
     }
+
+    // কিবোর্ড হাইড এবং এডিট মুড অফ করা
+    Keyboard.dismiss();
     setEditingId(null);
   };
 
-  // ✅ ইনপুটে ফোকাস করলে অটো-স্ক্রল
+  // Duplicate / Copy Item
+  const handleDuplicateItem = (item: any) => {
+    const copiedProduct = {
+      ...item.product,
+      _id: generateUniqueId(item.product._id),
+    };
+    addToCart(copiedProduct);
+
+    setTimeout(() => {
+      setEditingId(copiedProduct._id);
+      setEditName(`${item.customName || item.product.name} (Copy)`);
+      setEditPrice((item.customPrice ?? item.product.salePrice).toString());
+    }, 200);
+  };
+
   const handleFocusScroll = (yOffset: number) => {
     setTimeout(() => {
       scrollViewRef.current?.scrollTo({ y: yOffset, animated: true });
@@ -165,7 +187,7 @@ export default function CartOverviewScreen() {
           ref={scrollViewRef}
           className="flex-1 px-4 pt-5"
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled" // 👈 এটি গুরুত্বপূর্ণ, কিবোর্ড খোলা অবস্থায় টাচ হ্যান্ডেল করার জন্য
           contentContainerStyle={{ paddingBottom: keyboardPadding }}
         >
           {/* Main Cart Table */}
@@ -210,17 +232,16 @@ export default function CartOverviewScreen() {
 
                       <View className="flex-col gap-3">
                         <View className="flex-row gap-2">
+                          {/* Name Input Fixed */}
                           <View className="flex-[2]">
                             <Text className="text-[10px] font-extrabold text-amber-600 mb-1">
                               মেমোর নাম
                             </Text>
                             <TextInput
+                              ref={nameInputRef} // 👈 Auto focus ref added here
                               value={editName}
                               onChangeText={setEditName}
-                              onBlur={() => saveEditing(item.product._id)} // ✅ কীবোর্ড নামলে অটো সেভ
-                              onSubmitEditing={() =>
-                                saveEditing(item.product._id)
-                              } // ✅ এন্টার চাপলে অটো সেভ
+                              // onBlur রিমুভ করা হয়েছে যাতে টাইপ করার সময় কিবোর্ড হাইড না হয়
                               className="bg-white border border-amber-200 rounded-xl px-3 h-11 text-sm font-bold text-slate-800 focus:border-amber-400"
                             />
                           </View>
@@ -252,6 +273,7 @@ export default function CartOverviewScreen() {
                             </View>
                           </View>
 
+                          {/* Price Input Fixed */}
                           <View className="flex-[1.5]">
                             <Text className="text-[10px] font-extrabold text-amber-600 mb-1 text-right">
                               নতুন দর (৳)
@@ -261,14 +283,13 @@ export default function CartOverviewScreen() {
                                 ৳
                               </Text>
                               <TextInput
-                                ref={priceInputRef} // ✅ অটো ফোকাস রেফারেন্স
                                 value={editPrice}
                                 onChangeText={setEditPrice}
                                 keyboardType="numeric"
-                                onBlur={() => saveEditing(item.product._id)} // ✅ কীবোর্ড নামলে অটো সেভ
+                                // onBlur রিমুভ করা হয়েছে
                                 onSubmitEditing={() =>
                                   saveEditing(item.product._id)
-                                } // ✅ এন্টার চাপলে অটো সেভ
+                                }
                                 className="flex-1 text-right font-black text-slate-800 text-sm"
                               />
                             </View>
@@ -299,6 +320,7 @@ export default function CartOverviewScreen() {
                             </TouchableOpacity>
                           </View>
 
+                          {/* ✅ Save Action Triggered only via this button */}
                           <TouchableOpacity
                             onPress={() => saveEditing(item.product._id)}
                             className="flex-row items-center bg-[#f59e0b] px-5 py-2 rounded-lg shadow-sm active:bg-amber-600"
@@ -329,19 +351,16 @@ export default function CartOverviewScreen() {
                           {displayName}
                         </Text>
                       </View>
-
                       <View className="flex-1 items-center bg-slate-50 py-1 rounded-md border border-slate-100">
                         <Text className="font-extrabold text-slate-700">
                           {toBanglaNumber(item.qty)}
                         </Text>
                       </View>
-
                       <View className="flex-1 items-center">
                         <Text className="font-extrabold text-slate-600">
                           {toBanglaNumber(currentPrice)}
                         </Text>
                       </View>
-
                       <View className="flex-1 items-end">
                         <Text className="font-black text-slate-900 text-base">
                           {toBanglaNumber(currentPrice * item.qty)}{" "}
@@ -351,12 +370,23 @@ export default function CartOverviewScreen() {
                     </View>
 
                     <View className="flex-row justify-end gap-2">
+                      <TouchableOpacity
+                        onPress={() => handleDuplicateItem(item)}
+                        className="flex-row items-center bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm active:bg-emerald-100"
+                      >
+                        <Copy size={12} color="#059669" />
+                        <Text className="text-emerald-700 font-extrabold text-[11px] ml-1.5">
+                          কপি করুন
+                        </Text>
+                      </TouchableOpacity>
+
                       <TouchableOpacity className="flex-row items-center bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm active:bg-slate-50">
                         <Barcode size={12} color="#64748b" />
                         <Text className="text-slate-600 font-bold text-[11px] ml-1.5">
                           বারকোড
                         </Text>
                       </TouchableOpacity>
+
                       <TouchableOpacity
                         onPress={() => startEditing(item)}
                         className="flex-row items-center bg-sky-50 border border-sky-200 px-4 py-1.5 rounded-lg shadow-sm active:bg-sky-100"
@@ -442,7 +472,7 @@ export default function CartOverviewScreen() {
       <View className="absolute bottom-0 left-0 right-0 px-5 pb-6 pt-4 bg-white/95 border-t border-slate-100 z-20">
         <TouchableOpacity
           onPress={() => router.push("/checkout")}
-          className="w-full bg-gradient-to-r bg-[#4f46e5] h-14 rounded-2xl items-center justify-center shadow-lg shadow-indigo-500/40 active:bg-indigo-700"
+          className="w-full bg-[#4f46e5] h-14 rounded-2xl items-center justify-center shadow-lg shadow-indigo-500/40 active:bg-indigo-700"
         >
           <Text className="text-white font-black text-lg tracking-wide">
             চেকআউটে এগিয়ে যান ➔

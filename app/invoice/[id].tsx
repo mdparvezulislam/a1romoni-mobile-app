@@ -2,7 +2,8 @@
 import { useAuthStore } from "@/store/authStore";
 import * as MediaLibrary from "expo-media-library";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Download, X } from "lucide-react-native";
+import * as Sharing from "expo-sharing";
+import { Download, Share2, X } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -87,9 +88,6 @@ export default function InvoiceScreen() {
   const [loading, setLoading] = useState(true);
   const [isCapturing, setIsCapturing] = useState(false);
 
-  // Request permissions for media library
-  const [status, requestPermission] = MediaLibrary.usePermissions();
-
   const invoiceRef = useRef<ViewShot>(null);
 
   const invoiceOnlineUrl = `https://stock-a1romoni.vercel.app/invoice/${id}`;
@@ -99,7 +97,7 @@ export default function InvoiceScreen() {
     const fetchSale = async () => {
       try {
         const res = await fetch(
-          `https://stock-a1romoni.vercel.app/api/sales/${id}`, // 👈 Updated to Local IP for API
+          `https://stock-a1romoni.vercel.app/api/sales/${id}`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -124,40 +122,55 @@ export default function InvoiceScreen() {
     fetchSale();
   }, [id, token]);
 
-  // ✅ MAGIC FIX: Perfectly Capture Screenshot and Auto Download to Gallery
-  const handleSaveImageToGallery = async () => {
+  // ✅ Option 1: Share Image
+  const handleShareImage = async () => {
     if (!invoiceRef.current) return;
-
-    // Check and request gallery permissions
-    if (status === null) {
-      await requestPermission();
-    }
-    if (status?.status !== "granted") {
-      Alert.alert(
-        "পারমিশন প্রয়োজন",
-        "ছবি সেভ করার জন্য গ্যালারি অ্যাক্সেস প্রয়োজন।",
-      );
-      const newStatus = await requestPermission();
-      if (newStatus.status !== "granted") return;
-    }
-
     setIsCapturing(true);
 
     try {
-      // Small delay ensures rendering is completely finished before taking the shot
       await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // Capture the exact ViewShot area as a temporary URI
       const uri = await invoiceRef.current.capture?.();
 
       if (uri) {
-        // Save the temporary URI directly to the device's media library (Gallery)
-        await MediaLibrary.saveToLibraryAsync(uri);
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/jpeg",
+          dialogTitle: "মেমো শেয়ার করুন",
+          UTI: "public.jpeg",
+        });
+      }
+    } catch (error) {
+      Alert.alert("Error", "ছবি শেয়ার করতে সমস্যা হয়েছে।");
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
+  // ✅ Option 2: Direct Download Image (Legal way, avoiding AUDIO permission error)
+  const handleDownloadImage = async () => {
+    if (!invoiceRef.current) return;
+
+    try {
+      // FIX: Request only write permissions (false) to bypass the audio permission bug
+      const permissionResponse =
+        await MediaLibrary.requestPermissionsAsync(false);
+
+      if (!permissionResponse.granted) {
+        Alert.alert(
+          "পারমিশন প্রয়োজন",
+          "ছবি সেভ করার জন্য গ্যালারি অ্যাক্সেস প্রয়োজন। আপনার ফোন সেটিংস থেকে পারমিশন দিন।",
+        );
+        return;
+      }
+
+      setIsCapturing(true);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const uri = await invoiceRef.current.capture?.();
+
+      if (uri) {
+        await MediaLibrary.saveToLibraryAsync(uri);
         Alert.alert(
           "সফল!",
-          "মেমোর ছবিটি আপনার ফোনের গ্যালারিতে সেভ করা হয়েছে। এখন Fun Print অ্যাপ থেকে ছবিটি প্রিন্ট করুন।",
-          [{ text: "ওকে" }],
+          "মেমোর ছবিটি আপনার ফোনের গ্যালারিতে সেভ করা হয়েছে।",
         );
       }
     } catch (error) {
@@ -211,20 +224,16 @@ export default function InvoiceScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 150 }}
       >
-        {/* ========================================================= */}
-        {/* 📸 ViewShot Area Fix */}
-        {/* ========================================================= */}
         <ViewShot
           ref={invoiceRef}
           options={{ format: "jpg", quality: 1.0 }}
           style={{ width: "100%", maxWidth: 380, alignSelf: "center" }}
         >
-          {/* ✅ MAGIC FIX: Wrapped everything inside a single View with collapsable={false} and Solid White Background */}
           <View
             collapsable={false}
             style={{ backgroundColor: "#ffffff", padding: 12, width: "100%" }}
           >
-            {/* Header with QR side-by-side */}
+            {/* Header with QR */}
             <View className="flex-row justify-between items-start border-b-[3px] border-black pb-2 mb-2">
               <View className="flex-1 pr-2">
                 <Text
@@ -371,31 +380,43 @@ export default function InvoiceScreen() {
             </Text>
           </View>
         </ViewShot>
-        {/* ========================================================= */}
       </ScrollView>
 
       {/* Action Buttons */}
       <View className="absolute bottom-0 left-0 right-0 p-5 bg-white border-t border-gray-100 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] rounded-t-3xl">
-        <TouchableOpacity
-          onPress={handleSaveImageToGallery}
-          disabled={isCapturing}
-          className={`w-full flex-row items-center justify-center gap-2 py-4 rounded-xl shadow-lg mb-3 ${
-            isCapturing
-              ? "bg-blue-300"
-              : "bg-[#2563eb] shadow-blue-500/40 active:bg-blue-600"
-          }`}
-        >
-          {isCapturing ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <>
-              <Download color="#ffffff" size={22} strokeWidth={2.5} />
-              <Text className="text-white font-black text-lg tracking-wide">
-                ছবি ডাউনলোড করুন
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View className="flex-row gap-3 mb-3">
+          {/* Share Button */}
+          <TouchableOpacity
+            onPress={handleShareImage}
+            disabled={isCapturing}
+            className={`flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-xl border border-slate-200 bg-white active:bg-slate-50`}
+          >
+            <Share2 color="#334155" size={20} strokeWidth={2.5} />
+            <Text className="text-slate-700 font-black text-[15px]">
+              শেয়ার করুন
+            </Text>
+          </TouchableOpacity>
+
+          {/* Download/Save Button */}
+          <TouchableOpacity
+            onPress={handleDownloadImage}
+            disabled={isCapturing}
+            className={`flex-[1.2] flex-row items-center justify-center gap-2 py-3.5 rounded-xl shadow-sm ${
+              isCapturing ? "bg-blue-300" : "bg-[#2563eb] active:bg-blue-700"
+            }`}
+          >
+            {isCapturing ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Download color="#ffffff" size={20} strokeWidth={2.5} />
+                <Text className="text-white font-black text-[15px]">
+                  ডাউনলোড করুন
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           onPress={() => router.replace("/sells")}

@@ -1,5 +1,5 @@
 // app/login.tsx
-import { useAuthStore } from "@/store/authStore"; // 👈 আপনার স্টোরের সঠিক পাথ দিন
+import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "expo-router";
 import {
   Eye,
@@ -27,10 +27,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function LoginScreen() {
   const router = useRouter();
 
-  // Zustand Store থেকে state আপডেট করার ফাংশনগুলো নিয়ে আসা
-  // (আপনার স্টোরের ফাংশনের নাম ভিন্ন হলে এখানে ঠিক করে নেবেন)
-  const setToken = useAuthStore((state: any) => state.setToken);
-  const setUser = useAuthStore((state: any) => state.setUser);
+  // ✅ MAGIC FIX: Zustand Store থেকে সরাসরি 'login' ফাংশনটি নেওয়া হলো
+  const login = useAuthStore((state) => state.login);
 
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +49,7 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      // 2. Fetch API Call (আপনার Next.js ব্যাকএন্ডের লগইন রাউট)
+      // 2. Fetch API Call
       const response = await fetch(
         "https://stock-a1romoni.vercel.app/api/mobile/login",
         {
@@ -69,17 +67,16 @@ export default function LoginScreen() {
       const data = await response.json();
 
       // 3. Handle Response
-      if (response.ok && data.token) {
-        // স্টোরে টোকেন এবং ইউজারের তথ্য সেভ করা
-        setToken(data.token);
-        if (data.user) setUser(data.user);
+      if (response.ok && data.success && data.token) {
+        // ✅ স্টোরে ইউজার এবং টোকেন একসাথে সেভ করা
+        login(data.user, data.token);
 
-        // সফল হলে সরাসরি ড্যাশবোর্ডে (Tabs) নিয়ে যাবে
+        // সফল হলে সরাসরি ড্যাশবোর্ডে (Tabs) নিয়ে যাবে
         router.replace("/(tabs)");
       } else {
         Alert.alert(
           "লগইন ব্যর্থ",
-          data.error || data.message || "ফোন নম্বর বা পাসওয়ার্ড ভুল হয়েছে!",
+          data.message || data.error || "ফোন নম্বর বা পাসওয়ার্ড ভুল হয়েছে!",
         );
       }
     } catch (error) {
@@ -169,7 +166,7 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              {/* Forgot Password (Optional) */}
+              {/* Forgot Password */}
               <TouchableOpacity className="self-end mt-2">
                 <Text className="text-sky-600 font-bold text-sm">
                   পাসওয়ার্ড ভুলে গেছেন?
@@ -201,7 +198,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Support / Footer Text */}
+            {/* Support Text */}
             <View className="mt-10 items-center">
               <Text className="text-slate-400 font-medium text-xs">
                 কোনো সমস্যা হলে অ্যাডমিনের সাথে যোগাযোগ করুন।
