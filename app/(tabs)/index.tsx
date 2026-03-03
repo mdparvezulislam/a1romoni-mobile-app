@@ -13,6 +13,7 @@ import {
   RefreshCcw,
   ShoppingCart,
   TrendingUp,
+  Users,
   Wallet,
 } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
@@ -65,7 +66,6 @@ export default function HomeScreen() {
     সর্বমোট: "all",
   };
 
-  // ✅ ডেটা ফেচিং লজিক (Refresh Button = Live Data)
   const fetchDashboardData = useCallback(
     async (tabToFetch: string, isRefresh = false) => {
       try {
@@ -73,7 +73,6 @@ export default function HomeScreen() {
         const cacheKey = `@dashboard_data_${queryFilter}`;
 
         if (!isRefresh) {
-          // অ্যাপ ওপেন করার সময় ক্যাশ দেখাবে
           const cachedData = await AsyncStorage.getItem(cacheKey);
           if (cachedData) {
             setData(JSON.parse(cachedData));
@@ -83,7 +82,6 @@ export default function HomeScreen() {
             setLoading(true);
           }
         } else {
-          // রিফ্রেশ বাটনে ক্লিক করলে সরাসরি লোডিং স্পিনার দেখাবে
           setRefreshing(true);
         }
 
@@ -166,7 +164,14 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          {/* লগইন এবং রিফ্রেশ বাটন */}
           <View className="flex-row gap-2">
+            <Link href="/login" asChild>
+              <TouchableOpacity className="w-10 h-10 items-center justify-center bg-white/10 rounded-full border border-white/20 active:bg-white/20">
+                <Users color="#fff" size={16} />
+              </TouchableOpacity>
+            </Link>
+
             <TouchableOpacity
               onPress={() => fetchDashboardData(activeTab, true)}
               disabled={refreshing}
@@ -358,13 +363,13 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 </Link>
 
-                <Link href="/products" asChild>
+                <Link href="/expenses" asChild>
                   <TouchableOpacity className="items-center mr-6 active:opacity-70">
                     <View className="w-[60px] h-[60px] bg-indigo-50 rounded-[18px] items-center justify-center border border-indigo-100 mb-2 shadow-sm">
                       <Package color="#6366f1" size={26} />
                     </View>
                     <Text className="text-[11px] font-bold text-slate-600">
-                      স্টক
+                      খরচ হিস্ট্রি
                     </Text>
                   </TouchableOpacity>
                 </Link>

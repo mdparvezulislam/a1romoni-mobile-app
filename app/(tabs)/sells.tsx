@@ -79,7 +79,7 @@ export default function SellsScreen() {
         setError(null);
 
         const limit = 20;
-        const url = `http://192.168.0.101:3000/api/products?page=${currentPage}&limit=${limit}&search=${encodeURIComponent(searchQuery)}`;
+        const url = `https://stock-a1romoni.vercel.app/api/products?page=${currentPage}&limit=${limit}&search=${encodeURIComponent(searchQuery)}`;
 
         const response = await fetch(url);
         const data = await response.json();

@@ -20,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.psb23.A1Romonim"
+      "package": "com.psb3.A23Romonim"
     },
     "web": {
       "bundler": "metro",
@@ -49,7 +49,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "10611137-12ea-44d6-8514-bd0334753d98"
+        "projectId": "ea0618d2-56b6-40ef-ac9a-1e18969a5021"
       }
     }
   }
